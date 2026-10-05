@@ -34,7 +34,7 @@ env:
 jobs:
   plan:
     name: Plan (${{ inputs.gh_environment }})
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     # Inherited from the caller. A called job cannot request pull-requests: write
     # when prod grants none, and declaring permissions here would also drop the
@@ -193,7 +193,7 @@ jobs:
     name: Apply (${{ inputs.gh_environment }})
     needs: plan
     if: needs.plan.outputs.has_changes == 'true'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     # The manual hold. The job waits here until a required reviewer on this
     # environment approves it.
