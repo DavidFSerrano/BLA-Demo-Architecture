@@ -1,0 +1,244 @@
+# Reusable Terraform pipeline. Dev and prod call this with different root module
+# directories and GitHub Environments, so both run an identical sequence:
+# init -> fmt -> validate -> test -> plan -> apply.
+#
+# The apply job is gated by a GitHub Environment. Add required reviewers to that
+# environment in repository settings to turn it into a manual hold.
+
+name: Terraform
+
+on:
+  workflow_call:
+    inputs:
+      environment_dir:
+        description: Root module directory to plan and apply.
+        required: true
+        type: string
+      gh_environment:
+        description: GitHub Environment that gates the apply job.
+        required: true
+        type: string
+      comment_on_pr:
+        description: Post the plan output as a pull request comment.
+        required: false
+        default: false
+        type: boolean
+
+env:
+  TF_VERSION: "1.10.1"
+  AWS_REGION: us-east-2
+  AWS_ROLE_ARN: arn:aws:iam::637423617446:role/github-actions-terraform-deploy
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  plan:
+    name: Plan (${{ inputs.gh_environment }})
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    outputs:
+      # terraform plan -detailed-exitcode returns 2 when there is something to do.
+      # Skipping apply on 0 avoids sending reviewers an approval request for a no-op.
+      has_changes: ${{ steps.plan.outputs.exitcode == '2' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure provider plugin cache
+        run: |
+          echo "TF_PLUGIN_CACHE_DIR=$HOME/.terraform.d/plugin-cache" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/.terraform.d/plugin-cache"
+
+      - name: Restore provider cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: ${{ runner.os }}-terraform-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-terraform-${{ inputs.gh_environment }}-${{ github.run_id }}
+
+      - name: Terraform init
+        working-directory: ${{ inputs.environment_dir }}
+        run: terraform init -lock-timeout=5m
+
+      # Formatting is checked across the whole tree, not just this environment.
+      - name: Terraform fmt
+        working-directory: Terraform
+        run: terraform fmt -check -recursive -diff
+
+      - name: Terraform validate
+        working-directory: ${{ inputs.environment_dir }}
+        run: terraform validate -no-color
+
+      # Module tests use a mocked AWS provider, so they create nothing and would
+      # pass without credentials. They run before plan so a broken module fails
+      # the pipeline early.
+      - name: Terraform test (vpc module)
+        working-directory: Terraform/modules/vpc
+        run: |
+          terraform init -no-color
+          terraform test -no-color
+
+      - name: Terraform plan
+        id: plan
+        continue-on-error: true
+        working-directory: ${{ inputs.environment_dir }}
+        run: terraform plan -no-color -lock-timeout=5m -detailed-exitcode -out=tfplan
+
+      - name: Fail on plan error
+        if: steps.plan.outputs.exitcode == '1'
+        run: |
+          echo "::error::terraform plan failed for ${{ inputs.gh_environment }}"
+          exit 1
+
+      # The apply job consumes this exact plan file, so what a reviewer approves
+      # is what gets applied.
+      - name: Upload plan
+        if: steps.plan.outputs.exitcode == '2'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ inputs.gh_environment }}-${{ github.run_id }}
+          path: ${{ inputs.environment_dir }}/tfplan
+          retention-days: 5
+          if-no-files-found: error
+
+      # Plan text is passed through the environment, never interpolated into the
+      # script body, so Terraform output cannot be executed as shell.
+      - name: Job summary
+        env:
+          PLAN_STDOUT: ${{ steps.plan.outputs.stdout }}
+          PLAN_EXITCODE: ${{ steps.plan.outputs.exitcode }}
+        run: |
+          {
+            echo "## Terraform plan (${{ inputs.gh_environment }})"
+            echo
+            if [ "$PLAN_EXITCODE" = "0" ]; then
+              echo "No changes. Apply will be skipped."
+            else
+              echo '```terraform'
+              printf '%s\n' "$PLAN_STDOUT" | tail -c 60000
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment plan on pull request
+        if: inputs.comment_on_pr && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        env:
+          PLAN_STDOUT: ${{ steps.plan.outputs.stdout }}
+          PLAN_EXITCODE: ${{ steps.plan.outputs.exitcode }}
+        with:
+          script: |
+            const marker = `<!-- terraform-plan-${{ inputs.gh_environment }} -->`;
+            const exitcode = process.env.PLAN_EXITCODE;
+
+            // GitHub rejects comment bodies over 65536 characters.
+            const limit = 60000;
+            let plan = process.env.PLAN_STDOUT || '';
+            if (plan.length > limit) {
+              plan = `...truncated, see the job summary for the full plan...\n${plan.slice(-limit)}`;
+            }
+
+            const body = exitcode === '0'
+              ? `${marker}\n### Terraform plan: \`${{ inputs.gh_environment }}\`\n\nNo changes. Apply will be skipped.`
+              : `${marker}\n### Terraform plan: \`${{ inputs.gh_environment }}\`\n\nApply is held for manual approval in the \`${{ inputs.gh_environment }}\` environment.\n\n<details><summary>Show plan</summary>\n\n\`\`\`terraform\n${plan}\n\`\`\`\n\n</details>`;
+
+            // Replace our previous comment instead of stacking a new one per push.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body?.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+  apply:
+    name: Apply (${{ inputs.gh_environment }})
+    needs: plan
+    if: needs.plan.outputs.has_changes == 'true'
+    runs-on: ubuntu-latest
+
+    # The manual hold. The job waits here until a required reviewer on this
+    # environment approves it.
+    environment: ${{ inputs.gh_environment }}
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure provider plugin cache
+        run: |
+          echo "TF_PLUGIN_CACHE_DIR=$HOME/.terraform.d/plugin-cache" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/.terraform.d/plugin-cache"
+
+      - name: Restore provider cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.terraform.d/plugin-cache
+          key: ${{ runner.os }}-terraform-${{ hashFiles('**/.terraform.lock.hcl') }}
+          restore-keys: ${{ runner.os }}-terraform-
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: gha-terraform-apply-${{ inputs.gh_environment }}-${{ github.run_id }}
+
+      - name: Download plan
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ inputs.gh_environment }}-${{ github.run_id }}
+          path: ${{ inputs.environment_dir }}
+
+      - name: Terraform init
+        working-directory: ${{ inputs.environment_dir }}
+        run: terraform init -lock-timeout=5m
+
+      # Applying the saved plan rather than re-planning. If the state moved while
+      # the approval was pending, Terraform refuses the stale plan instead of
+      # applying something nobody reviewed.
+      - name: Terraform apply
+        working-directory: ${{ inputs.environment_dir }}
+        run: terraform apply -no-color -lock-timeout=5m tfplan

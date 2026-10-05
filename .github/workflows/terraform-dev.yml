@@ -1,0 +1,35 @@
+# Pull requests are validated and applied to dev.
+# The apply is held until a reviewer approves the `dev` environment.
+
+name: Terraform Dev
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Terraform/**"
+      - ".github/workflows/terraform.yml"
+      - ".github/workflows/terraform-dev.yml"
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+# Dev has one state file, so runs from different pull requests are serialized
+# rather than cancelled: cancelling mid-apply would leave a lock behind.
+concurrency:
+  group: terraform-dev
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    uses: ./.github/workflows/terraform.yml
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    with:
+      environment_dir: Terraform/environments/Dev
+      gh_environment: dev
+      comment_on_pr: true

@@ -67,6 +67,6 @@ Do not apply the infrastructure.
 
 
 
-## Terraform testing framework
+## Prompt for unit testing and the terraform testing framework
 
-great, using the terrafrom testing framework, add tests to the vpc module
+Using the terrafrom testing framework, add tests to the vpc module
