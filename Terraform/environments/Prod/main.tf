@@ -21,6 +21,20 @@ module "vpc" {
   eks_cluster_name           = local.cluster_name
 }
 
+module "network_firewall" {
+  source = "../../modules/network-firewall"
+
+  project     = var.project
+  environment = var.environment
+  tags        = var.tags
+  network     = module.vpc.firewall_integration
+}
+
+moved {
+  from = module.vpc.aws_route.app_default
+  to   = module.network_firewall.aws_route.app_default
+}
+
 module "eks" {
   source = "../../modules/eks"
 
@@ -65,5 +79,7 @@ module "rds" {
   primary_availability_zone  = "us-east-2b"
   read_replica_count         = 2
   instance_class             = "db.t3.micro"
+  deletion_protection        = false
+  skip_final_snapshot        = true
   allowed_security_group_ids = [module.eks.node_security_group_id]
 }

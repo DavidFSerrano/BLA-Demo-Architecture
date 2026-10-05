@@ -93,14 +93,14 @@ run "public_subnets_default_to_the_internet_gateway" {
   }
 }
 
-run "only_public_and_app_tables_have_default_routes" {
+run "only_public_tables_have_a_default_route" {
   command = apply
 
-  # The module declares no routes for the firewall or database tables, so the
-  # total route count is the proof that neither has an internet path.
+  # Application default routes belong to the network firewall module. Firewall
+  # and database tables have no internet route in this module.
   assert {
-    condition     = length(aws_route.public_default) == 3 && length(aws_route.app_default) == 3
-    error_message = "Expected exactly three public and three application default routes."
+    condition     = length(aws_route.public_default) == 3
+    error_message = "Expected exactly three public default routes."
   }
 }
 
@@ -122,16 +122,6 @@ run "shared_nat_gateway" {
   assert {
     condition     = aws_nat_gateway.this["us-east-2a"].subnet_id == aws_subnet.public["us-east-2a"].id
     error_message = "The NAT gateway must live in the public subnet of its own AZ."
-  }
-
-  # All three zones egress through the single gateway, which is the documented
-  # cost-over-availability tradeoff.
-  assert {
-    condition = alltrue([
-      for az in var.availability_zones :
-      aws_route.app_default[az].nat_gateway_id == "nat-aaaaaaaaaaaaaaaaa"
-    ])
-    error_message = "Every application subnet must route to the shared NAT gateway."
   }
 
   assert {
@@ -181,17 +171,6 @@ run "nat_gateway_per_az" {
       aws_nat_gateway.this[az].subnet_id == aws_subnet.public[az].id
     ])
     error_message = "Each NAT gateway must sit in the public subnet of its own AZ."
-  }
-
-  # The point of per-AZ NAT: no normal egress crosses a zone boundary, so a
-  # zone failure is contained.
-  assert {
-    condition = alltrue([
-      aws_route.app_default["us-east-2a"].nat_gateway_id == "nat-aaaaaaaaaaaaaaaaa",
-      aws_route.app_default["us-east-2b"].nat_gateway_id == "nat-bbbbbbbbbbbbbbbbb",
-      aws_route.app_default["us-east-2c"].nat_gateway_id == "nat-ccccccccccccccccc",
-    ])
-    error_message = "Each application subnet must egress through the NAT gateway in its own AZ."
   }
 
   assert {

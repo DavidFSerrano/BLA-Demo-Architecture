@@ -1,3 +1,3 @@
 # BLA-Demo-Architecture
 
-![Production VPC and EKS layout (10.1.0.0/16)](Document%20new.jpg)
+![Production VPC, 10.1.0.0/16, across three Availability Zones](Document.jpg)

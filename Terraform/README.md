@@ -117,33 +117,28 @@ Prod runs one NAT gateway per AZ and each application subnet routes to the gatew
 own zone, so a zone failure does not take egress with it and no normal egress crosses a
 zone boundary.
 
-## Future AWS Network Firewall integration
+## AWS Network Firewall
 
-Nothing firewall-related is deployed yet: no firewall, no policy, no rule groups. What
-exists is the structural preparation, which is the part that is expensive to retrofit:
-dedicated `/28` subnets per AZ, their own route tables, and per-AZ application and public
-route tables so routes can be changed one zone at a time.
+Prod calls `modules/network-firewall`. One firewall endpoint is created in the reserved
+firewall subnet of each Availability Zone. The policy forwards every packet to the
+stateful engine, which has a single pass rule so egress keeps working.
 
-The target egress path is:
+The VPC module does not create the application default route. The firewall module owns these routes:
+
+The egress path is:
 
 ```
 application subnet -> same-AZ firewall endpoint -> NAT gateway -> internet gateway
 ```
 
-A future `modules/security` will consume the `firewall_integration` output and make three
-changes per AZ:
+Per Availability Zone the module:
 
-1. Create a firewall endpoint in `firewall_subnet_ids[az]`.
-2. **Forward route** — repoint `0.0.0.0/0` in `app_route_table_ids[az]` from the NAT
-   gateway to that endpoint, and add `0.0.0.0/0` in `firewall_route_table_ids[az]` to the
-   NAT gateway given by `nat_gateway_az_by_app[az]`.
-3. **Return route** — in `public_route_table_ids[az]`, route `app_subnet_cidrs[az]` back to
-   the same firewall endpoint, so the return leg traverses the same stateful engine as the
-   forward leg. Asymmetric routing breaks stateful inspection.
-
-Once step 2 lands, the `aws_route.app_default` resource in this module is no longer the
-owner of the application default route. Move that route into the security module rather
-than letting the two fight over it.
+1. Creates the firewall endpoint in that zone's firewall subnet.
+2. Points `0.0.0.0/0` in the application route table at that endpoint, and points
+   `0.0.0.0/0` in the firewall route table at the NAT gateway for that application zone.
+3. Adds a return route for that application CIDR on the public route table of the NAT
+   gateway's zone, back to the same firewall endpoint. Asymmetric routing breaks stateful
+   inspection.
 
 **The shared dev NAT gateway needs extra care.** With one NAT gateway in `us-east-2a`
 serving all three zones, return traffic arrives in a single public subnet whose route table

@@ -38,17 +38,6 @@ resource "aws_route_table" "app" {
   })
 }
 
-# Phase 1 egress: application subnet -> NAT gateway -> internet gateway.
-# When AWS Network Firewall is introduced, the future security module replaces this
-# target with the same-AZ firewall endpoint (see README).
-resource "aws_route" "app_default" {
-  for_each = local.app_subnet_cidrs
-
-  route_table_id         = aws_route_table.app[each.key].id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.this[local.app_nat_az[each.key]].id
-}
-
 resource "aws_route_table_association" "app" {
   for_each = aws_subnet.app
 

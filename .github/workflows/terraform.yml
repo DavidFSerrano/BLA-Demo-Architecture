@@ -110,6 +110,12 @@ jobs:
           terraform init -no-color
           terraform test -no-color
 
+      - name: Terraform test (network firewall module)
+        working-directory: Terraform/modules/network-firewall
+        run: |
+          terraform init -no-color
+          terraform test -no-color
+
       - name: Terraform plan
         id: plan
         continue-on-error: true
