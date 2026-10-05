@@ -1,0 +1,36 @@
+# Terraform working directories and plugins
+**/.terraform/*
+.terraform.tfstate.lock.info
+
+# State files: never commit, they may contain sensitive values
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Plan output
+*.tfplan
+*.tfplan.*
+crash.log
+crash.*.log
+
+# Variable files that can hold environment-specific or sensitive values.
+# Committed defaults live in each root module's variables.tf instead.
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# Terraform CLI config and credentials
+.terraformrc
+terraform.rc
+
+# Cloud credentials
+.aws/
+*.pem
+*.key
+.env
+.env.*
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
