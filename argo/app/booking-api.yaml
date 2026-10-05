@@ -22,16 +22,34 @@ spec:
       labels:
         app: booking-api
     spec:
+      volumes:
+        - name: tmp
+          emptyDir: {}
       containers:
         - name: booking-api
-          image: public.ecr.aws/docker/library/nginx:1.27-alpine
+          image: 637423617446.dkr.ecr.us-east-2.amazonaws.com/bla-demo-booking-api:latest
+          imagePullPolicy: Always
           ports:
             - name: http
-              containerPort: 80
+              containerPort: 8080
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           readinessProbe:
             httpGet:
-              path: /
+              path: /health
               port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: 50m

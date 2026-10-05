@@ -1,0 +1,12 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: booking-api
+  namespace: booking
+spec:
+  selector:
+    matchLabels:
+      app: booking-api
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
