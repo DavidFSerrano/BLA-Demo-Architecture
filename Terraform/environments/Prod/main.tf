@@ -60,8 +60,10 @@ module "rds" {
   availability_zones  = var.availability_zones
 
   # The architecture diagram puts the writer in the middle zone and a read
-  # replica in each of the other two database subnets.
+  # replica in each of the other two database subnets. db.t3.micro is the
+  # common x86 class; db.t4g.micro had no capacity in us-east-2b.
   primary_availability_zone  = "us-east-2b"
   read_replica_count         = 2
+  instance_class             = "db.t3.micro"
   allowed_security_group_ids = [module.eks.node_security_group_id]
 }
