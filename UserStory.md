@@ -1,0 +1,5 @@
+As the product owner of an appointment-booking service, I want our application ready for its first public launch so that customers can check availability, book appointments, and return later to view their reservations.
+
+We are moving beyond a small pilot and expect promotional campaigns to bring more customers onto the service at the same time. Customers need to complete their bookings reliably during these busy periods and trust that their reservations will still be there when we update the application or replace a failed instance. Their personal information must remain protected throughout.
+
+Our development team also needs a consistent way to set up testing and production environments so we can validate changes before releasing them. A successful launch means customers can depend on the booking service while our team can maintain and grow it without repeatedly configuring infrastructure by hand.
