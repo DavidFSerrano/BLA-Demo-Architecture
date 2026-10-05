@@ -64,3 +64,9 @@ Apply consistent project and environment tags. Document the subnet allocation, c
 Run `terraform fmt` and initialize and validate each environment. If backend buckets are not available, use `terraform init -backend=false` for validation and explain how to initialize the backend after bootstrapping.
 
 Do not apply the infrastructure.
+
+
+
+## Terraform testing framework
+
+great, using the terrafrom testing framework, add tests to the vpc module
