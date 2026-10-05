@@ -1,8 +1,9 @@
 # modules/vpc
 
 Reusable networking module: one VPC, 12 subnets across the supplied Availability Zones,
-explicit route tables for every subnet, NAT and internet gateways, and an S3 gateway
-endpoint. It deploys no compute, no database, and no firewall.
+explicit route tables for every subnet, NAT and internet gateways, an S3 gateway
+endpoint, and interface endpoints for EKS Auth, ECR, STS, and EC2. It deploys no
+compute, no database, and no firewall.
 
 The full address plan, routing diagram, NAT tradeoff, and the future AWS Network Firewall
 integration are documented in [`../../README.md`](../../README.md).
@@ -66,7 +67,7 @@ terraform test
 | `variables.tftest.hcl` | Every input validation, each with a bad value and `expect_failures`. |
 | `subnets.tftest.hcl` | VPC flags, the 12-subnet layout, CIDR non-overlap and VPC containment, app subnet sizing, load balancer and cluster discovery tags, project/environment tagging. |
 | `routing.tftest.hcl` | One route table and association per subnet, public default to the IGW, the absence of firewall and database default routes, and both NAT topologies. |
-| `outputs.tftest.hcl` | S3 endpoint placement and its disable switch, the shape of the grouped outputs, and the `firewall_integration` contract. |
+| `outputs.tftest.hcl` | S3 and interface endpoint placement and their disable switches, the shape of the grouped outputs, and the `firewall_integration` contract. |
 
 Notes on how the tests are written:
 
@@ -100,6 +101,7 @@ fails `nat_gateway_per_az`, and adding an `elb` tag to the database subnets fail
 | `single_nat_gateway` | `bool` | `false` | Share one NAT gateway across all AZs. |
 | `nat_gateway_az` | `string` | `null` | AZ hosting the shared NAT gateway. Defaults to the first AZ. |
 | `enable_s3_gateway_endpoint` | `bool` | `true` | Create the S3 gateway endpoint on the app route tables. |
+| `enable_interface_endpoints` | `bool` | `true` | Create EKS Auth, ECR, STS, and EC2 interface endpoints in the application subnets. |
 | `eks_cluster_name` | `string` | `null` | When set, adds `kubernetes.io/cluster/<name> = shared` to public and app subnets. |
 
 ## Outputs
@@ -114,5 +116,6 @@ fails `nat_gateway_per_az`, and adding an `elb` tag to the database subnets fail
 | `route_table_ids_by_role` | Route table IDs grouped by role, keyed by AZ. |
 | `nat_gateway_ids`, `nat_gateway_public_ips` | Keyed by the AZ that hosts them. |
 | `nat_gateway_az_by_app_az`, `single_nat_gateway` | Which NAT gateway each app subnet egresses through. |
-| `internet_gateway_id`, `s3_vpc_endpoint_id` | Gateway and endpoint IDs. |
+| `internet_gateway_id`, `s3_vpc_endpoint_id` | Gateway and S3 endpoint IDs. |
+| `interface_vpc_endpoint_ids` | Interface endpoint IDs keyed by `eks_auth`, `ecr_api`, `ecr_dkr`, `sts`, and `ec2`. |
 | `firewall_integration` | Bundle of IDs a future security module needs for firewall endpoints and symmetric routes. |

@@ -70,3 +70,18 @@ Do not apply the infrastructure.
 ## Prompt for unit testing and the terraform testing framework
 
 Using the terrafrom testing framework, add tests to the vpc module
+
+## Prompt for creating a basic CICD workflow
+
+I have connected this repo with aws via oidc, the role arn github actions must use for terraform apply is arn:aws:iam::637423617446:role/github-actions-terraform-deploy
+
+Create a gh actions pipeline where:
+
+PRs trigger terraform init -> terraform fmt -> terraform validate -> terraform test -> terraform plan and terraform apply to the dev backend. for the dev backend, terraform apply is a manual hold 
+
+merge to main triggers terraform apply to the prod backend
+
+
+## Prompt for creating the EKS module.
+
+Create the eks module now, use the second smallest ec2 instance that eks allows, the worker nodes should be deployed in 3 private subnets across the 3 AZs, install the vpc CNI , EBS CSI , use managed node groups , add EKS pod identify so pods can use IAM roles, as an eks addon, coredns and kube-proxy, all eks worker nodes should share the same security group

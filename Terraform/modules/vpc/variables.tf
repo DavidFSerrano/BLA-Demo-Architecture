@@ -99,6 +99,12 @@ variable "enable_s3_gateway_endpoint" {
   default     = true
 }
 
+variable "enable_interface_endpoints" {
+  description = "Create interface endpoints for EKS Auth, ECR, STS, and EC2 in the application subnets."
+  type        = bool
+  default     = true
+}
+
 variable "eks_cluster_name" {
   description = "Optional future EKS cluster name. When set, shared cluster discovery tags are added to the public and application subnets."
   type        = string
