@@ -96,6 +96,12 @@ jobs:
           terraform init -no-color
           terraform test -no-color
 
+      - name: Terraform test (eks module)
+        working-directory: Terraform/modules/eks
+        run: |
+          terraform init -no-color
+          terraform test -no-color
+
       - name: Terraform plan
         id: plan
         continue-on-error: true

@@ -47,3 +47,23 @@ output "firewall_integration" {
   description = "Identifiers for the future security module that adds AWS Network Firewall."
   value       = module.vpc.firewall_integration
 }
+
+output "eks_cluster_name" {
+  description = "EKS cluster name."
+  value       = module.eks.cluster_name
+}
+
+output "eks_cluster_endpoint" {
+  description = "Kubernetes API server endpoint."
+  value       = module.eks.cluster_endpoint
+}
+
+output "eks_node_security_group_id" {
+  description = "Shared security group on every worker node."
+  value       = module.eks.node_security_group_id
+}
+
+output "eks_addon_names" {
+  description = "EKS add-ons installed on the cluster."
+  value       = module.eks.addon_names
+}

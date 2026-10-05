@@ -1,19 +1,18 @@
-# Networking foundation
+# Infrastructure
 
-Terraform for the networking layer of the appointment-booking service. This phase builds
-**only** the VPC and its routing. EKS, RDS, and AWS Network Firewall are deliberately not
-here; they arrive as sibling modules under `modules/` and are wired in through the outputs
-documented below.
+Terraform for the appointment-booking service. Networking and EKS live here; RDS and
+AWS Network Firewall arrive later as sibling modules under `modules/`.
 
 ```
 Terraform/
   Bootstrap/            one S3 state bucket per environment (local state, run once)
   environments/
-    Dev/                root module, VPC 10.0.0.0/16, own state bucket
-    Prod/               root module, VPC 10.1.0.0/16, own state bucket
+    Dev/                root module, VPC 10.0.0.0/16 + EKS, own state bucket
+    Prod/               root module, VPC 10.1.0.0/16 + EKS, own state bucket
   modules/
-    vpc/                reusable networking module (both environments call it)
-    # future siblings: eks/, rds/, security/
+    vpc/                reusable networking module
+    eks/                reusable EKS cluster, node group, and add-ons
+    # future siblings: rds/, security/
 ```
 
 Region is `us-east-2` and each environment spans `us-east-2a`, `us-east-2b`, `us-east-2c`.
@@ -158,6 +157,20 @@ gateway, one public route table, and one firewall endpoint per zone.
 Inbound inspection of ALB traffic is out of scope for this phase. It needs the ALB to
 exist first and changes the public subnet route tables in a different way.
 
+## EKS
+
+Both environments call `modules/eks` with the three private application subnet IDs.
+Workers use a managed node group, instance type `t3.medium` (second-smallest EKS allows;
+`t3.nano`/`t3.micro` are rejected for memory), desired size 3 so one node can land in
+each AZ, and a single shared node security group.
+
+Add-ons: VPC CNI, kube-proxy, CoreDNS, EKS Pod Identity agent, and EBS CSI. EBS CSI gets
+IAM through Pod Identity. VPC CNI stays on the node role because it has to work at node
+boot. An EKS Auth interface endpoint is created in the application subnets so Pod Identity
+works from private nodes.
+
+See [`modules/eks/README.md`](modules/eks/README.md).
+
 ## Tagging
 
 Every resource carries `Project`, `Environment`, `ManagedBy = terraform`, and
@@ -230,8 +243,8 @@ If the role's trust policy only matches `ref:refs/heads/main`, the apply jobs wi
 assume the role. The simplest fix is a `StringLike` condition on
 `repo:DavidFSerrano/BLA-Demo-Architecture:*`.
 
-**3. The role needs access to both state buckets** and to the VPC, EC2, and EIP APIs the
-module manages.
+**3. The role needs access to both state buckets** and to the VPC, EC2, EKS, IAM, and EIP
+APIs the modules manage.
 
 ### A note on applying dev from pull requests
 
@@ -264,14 +277,13 @@ exist and without AWS credentials. `validate` makes no API calls.
 ### 2. Run the module tests (no credentials needed)
 
 ```sh
-cd Terraform/modules/vpc
-terraform init
-terraform test
+cd Terraform/modules/vpc && terraform init && terraform test
+cd Terraform/modules/eks && terraform init && terraform test
 ```
 
-28 tests covering input validation, the subnet layout, routing, both NAT topologies, and
-the output contract. The AWS provider is mocked, so nothing is created. See
-[`modules/vpc/README.md`](modules/vpc/README.md#tests).
+VPC and EKS tests both mock the AWS provider. See
+[`modules/vpc/README.md`](modules/vpc/README.md#tests) and
+[`modules/eks/README.md`](modules/eks/README.md#tests).
 
 ### 3. Create the state buckets (needs credentials)
 
