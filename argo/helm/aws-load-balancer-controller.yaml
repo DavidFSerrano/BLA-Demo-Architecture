@@ -1,0 +1,12 @@
+name: aws-load-balancer-controller
+repoURL: https://aws.github.io/eks-charts
+chart: aws-load-balancer-controller
+targetRevision: "3.5.0"
+namespace: kube-system
+values: |
+  clusterName: bla-demo-prod
+  region: us-east-2
+  vpcId: vpc-061ed4f5b5dcda814
+  serviceAccount:
+    create: true
+    name: aws-load-balancer-controller

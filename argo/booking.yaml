@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: booking
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/DavidFSerrano/BLA-Demo-Architecture
+    targetRevision: main
+    path: argo/app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: booking
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
