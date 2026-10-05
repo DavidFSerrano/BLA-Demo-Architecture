@@ -36,10 +36,9 @@ jobs:
     name: Plan (${{ inputs.gh_environment }})
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      id-token: write
-      pull-requests: write
+    # Permissions are inherited from the calling workflow. They are not declared
+    # here because a called job may not request more than its caller grants, and
+    # prod has no reason to hold pull-requests: write.
 
     outputs:
       # terraform plan -detailed-exitcode returns 2 when there is something to do.
@@ -194,9 +193,7 @@ jobs:
     # environment approves it.
     environment: ${{ inputs.gh_environment }}
 
-    permissions:
-      contents: read
-      id-token: write
+    # Inherited from the caller, as above.
 
     steps:
       - name: Checkout

@@ -1,0 +1,203 @@
+# On-demand OIDC diagnostics. Run this from the Actions tab when a job fails with
+# "Not authorized to perform sts:AssumeRoleWithWebIdentity".
+#
+# It prints the claims GitHub puts in the OIDC token and the exact IAM trust
+# policy condition that would match them, then attempts the real assume-role so
+# you can see which contexts work and which do not.
+#
+# The token itself is never printed. It is a bearer credential; only decoded,
+# non-secret claims are logged.
+
+name: OIDC Debug
+
+on:
+  workflow_dispatch:
+    inputs:
+      check_environments:
+        description: "Also test the dev and prod environment contexts (these may wait for approval)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-2
+  ROLE_ARN: arn:aws:iam::637423617446:role/github-actions-terraform-deploy
+
+jobs:
+  claims:
+    name: Claims (no environment)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show runner-visible OIDC configuration
+        run: |
+          {
+            echo "## Context: no environment"
+            echo
+            echo '| Field | Value |'
+            echo '| --- | --- |'
+            echo "| event_name | \`${{ github.event_name }}\` |"
+            echo "| ref | \`${{ github.ref }}\` |"
+            echo "| repository | \`${{ github.repository }}\` |"
+            echo "| repository_owner | \`${{ github.repository_owner }}\` |"
+            echo "| workflow_ref | \`${{ github.workflow_ref }}\` |"
+            echo "| role being assumed | \`$ROLE_ARN\` |"
+            echo "| region | \`$AWS_REGION\` |"
+            if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+              echo "| id-token: write granted | yes |"
+            else
+              echo "| id-token: write granted | NO - the job cannot request a token |"
+            fi
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Decode OIDC token claims
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const audience = 'sts.amazonaws.com';
+
+            let token;
+            try {
+              token = await core.getIDToken(audience);
+            } catch (e) {
+              core.setFailed(
+                `Could not request an OIDC token: ${e.message}\n` +
+                `This usually means the job was not granted id-token: write.`
+              );
+              return;
+            }
+
+            // Decode the payload only. The raw token is a credential and is
+            // deliberately never written to the log.
+            const payload = JSON.parse(
+              Buffer.from(token.split('.')[1], 'base64url').toString('utf8')
+            );
+
+            const interesting = [
+              'iss', 'aud', 'sub', 'repository', 'repository_owner',
+              'repository_id', 'repository_owner_id', 'ref', 'ref_type',
+              'event_name', 'workflow', 'workflow_ref', 'job_workflow_ref',
+              'environment', 'actor', 'runner_environment',
+            ];
+
+            let md = '\n### OIDC token claims\n\n| Claim | Value |\n| --- | --- |\n';
+            for (const key of interesting) {
+              if (payload[key] !== undefined) {
+                md += `| \`${key}\` | \`${payload[key]}\` |\n`;
+              }
+            }
+
+            // These three are what an IAM trust policy actually matches on.
+            md += '\n### What the IAM trust policy must allow\n\n';
+            md += '```json\n';
+            md += JSON.stringify({
+              StringEquals: {
+                'token.actions.githubusercontent.com:aud': payload.aud,
+              },
+              StringLike: {
+                'token.actions.githubusercontent.com:sub': payload.sub,
+              },
+            }, null, 2);
+            md += '\n```\n';
+            md += `\nProvider URL in IAM must be exactly \`${payload.iss.replace('https://', '')}\`\n`;
+            md += `(the \`iss\` claim is \`${payload.iss}\`, and IAM stores it without the scheme).\n`;
+
+            core.info(md);
+            await core.summary.addRaw(md).write();
+
+      - name: Attempt assume role
+        id: assume
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: oidc-debug-${{ github.run_id }}
+
+      - name: Report assume-role result
+        run: |
+          if [ "${{ steps.assume.outcome }}" = "success" ]; then
+            echo "### Assume role: SUCCESS" | tee -a "$GITHUB_STEP_SUMMARY"
+            aws sts get-caller-identity --output table | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "### Assume role: FAILED"
+              echo
+              echo "Compare the \`sub\` claim above against the trust policy on:"
+              echo "\`$ROLE_ARN\`"
+              echo
+              echo "Check in this order:"
+              echo "1. Provider URL is \`token.actions.githubusercontent.com\` with no scheme and no trailing slash."
+              echo "2. Audience list on the provider contains \`sts.amazonaws.com\`."
+              echo "3. The \`sub\` condition matches, and is \`StringLike\` if it contains a wildcard."
+              echo "4. Owner and repo name case match exactly. IAM conditions are case sensitive."
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+  claims-dev:
+    name: Claims (environment dev)
+    if: inputs.check_environments
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Decode OIDC token claims
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sts.amazonaws.com');
+            const payload = JSON.parse(
+              Buffer.from(token.split('.')[1], 'base64url').toString('utf8')
+            );
+            const md = `### Environment \`dev\`\n\n` +
+              `\`sub\` = \`${payload.sub}\`\n\n` +
+              `\`environment\` = \`${payload.environment}\`\n`;
+            core.info(md);
+            await core.summary.addRaw(md).write();
+
+      - name: Attempt assume role
+        id: assume
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: oidc-debug-dev-${{ github.run_id }}
+
+      - name: Report assume-role result
+        run: |
+          echo "Assume role from environment dev -> ${{ steps.assume.outcome }}" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  claims-prod:
+    name: Claims (environment prod)
+    if: inputs.check_environments
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - name: Decode OIDC token claims
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const token = await core.getIDToken('sts.amazonaws.com');
+            const payload = JSON.parse(
+              Buffer.from(token.split('.')[1], 'base64url').toString('utf8')
+            );
+            const md = `### Environment \`prod\`\n\n` +
+              `\`sub\` = \`${payload.sub}\`\n\n` +
+              `\`environment\` = \`${payload.environment}\`\n`;
+            core.info(md);
+            await core.summary.addRaw(md).write();
+
+      - name: Attempt assume role
+        id: assume
+        continue-on-error: true
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: oidc-debug-prod-${{ github.run_id }}
+
+      - name: Report assume-role result
+        run: |
+          echo "Assume role from environment prod -> ${{ steps.assume.outcome }}" | tee -a "$GITHUB_STEP_SUMMARY"
