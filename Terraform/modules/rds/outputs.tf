@@ -19,13 +19,16 @@ output "username" {
 }
 
 output "master_user_secret_arn" {
-  description = "Secrets Manager ARN of the RDS-managed master password."
-  value       = aws_db_instance.primary.master_user_secret[0].secret_arn
+  description = "Secrets Manager ARN of the writer master password."
+  value       = aws_secretsmanager_secret.master.arn
 }
 
 output "reader_endpoints" {
   description = "Read replica hostnames keyed by Availability Zone."
-  value       = { for az, replica in aws_db_instance.replica : az => replica.address }
+  value = merge(
+    { for replica in aws_db_instance.replica_first : replica.availability_zone => replica.address },
+    { for az, replica in aws_db_instance.replica : az => replica.address },
+  )
 }
 
 output "security_group_id" {

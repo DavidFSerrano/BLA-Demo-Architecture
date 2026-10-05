@@ -119,3 +119,74 @@ resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
   role       = aws_iam_role.aws_load_balancer_controller.name
   policy_arn = aws_iam_policy.aws_load_balancer_controller.arn
 }
+
+# Cluster Autoscaler runs as a pod. The node IMDS hop limit is 1, so it uses
+# Pod Identity rather than the node role.
+resource "aws_iam_role" "cluster_autoscaler" {
+  name = "${local.name_prefix}-cluster-autoscaler"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "AllowEksAuthToAssumeRoleForPodIdentity"
+      Effect = "Allow"
+      Action = ["sts:AssumeRole", "sts:TagSession"]
+      Principal = {
+        Service = "pods.eks.amazonaws.com"
+      }
+    }]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-cluster-autoscaler"
+  })
+}
+
+resource "aws_iam_policy" "cluster_autoscaler" {
+  name = "${local.name_prefix}-cluster-autoscaler"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DescribeAutoscaling"
+        Effect = "Allow"
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeScalingActivities",
+          "autoscaling:DescribeTags",
+          "ec2:DescribeImages",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeLaunchTemplateVersions",
+          "ec2:GetInstanceTypesFromInstanceRequirements",
+          "eks:DescribeNodegroup",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ScaleThisClustersNodeGroups"
+        Effect = "Allow"
+        Action = [
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/k8s.io/cluster-autoscaler/enabled"             = "true"
+            "aws:ResourceTag/k8s.io/cluster-autoscaler/${var.cluster_name}" = "owned"
+          }
+        }
+      },
+    ]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-cluster-autoscaler"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "cluster_autoscaler" {
+  role       = aws_iam_role.cluster_autoscaler.name
+  policy_arn = aws_iam_policy.cluster_autoscaler.arn
+}

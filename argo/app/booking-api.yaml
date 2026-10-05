@@ -22,9 +22,21 @@ spec:
       labels:
         app: booking-api
     spec:
+      automountServiceAccountToken: false
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
       volumes:
         - name: tmp
-          emptyDir: {}
+          emptyDir:
+            sizeLimit: 16Mi
       containers:
         - name: booking-api
           image: 637423617446.dkr.ecr.us-east-2.amazonaws.com/bla-demo-booking-api:latest
@@ -33,12 +45,17 @@ spec:
             - name: http
               containerPort: 8080
           securityContext:
+            privileged: false
             runAsNonRoot: true
             runAsUser: 65532
+            runAsGroup: 65532
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
             capabilities:
               drop: ["ALL"]
+              add: ["NET_BIND_SERVICE"]
           readinessProbe:
             httpGet:
               path: /health
@@ -69,3 +86,23 @@ spec:
     - name: http
       port: 80
       targetPort: http
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: booking-api
+  namespace: booking
+spec:
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: booking-api
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

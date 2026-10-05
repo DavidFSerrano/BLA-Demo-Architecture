@@ -38,17 +38,28 @@ run "writer_and_two_readers" {
   }
 
   assert {
-    condition     = length(aws_db_instance.replica) == 2
+    condition     = aws_db_instance.primary.manage_master_user_password != true
+    error_message = "PostgreSQL read replicas are rejected while RDS manages the master password."
+  }
+
+  assert {
+    condition     = length(aws_db_instance.replica_first) + length(aws_db_instance.replica) == 2
     error_message = "Prod places one read replica in each of the other two zones."
   }
 
   assert {
-    condition     = toset([for replica in aws_db_instance.replica : replica.availability_zone]) == toset(["us-east-2a", "us-east-2c"])
+    condition = toset(concat(
+      [for replica in aws_db_instance.replica_first : replica.availability_zone],
+      [for replica in aws_db_instance.replica : replica.availability_zone],
+    )) == toset(["us-east-2a", "us-east-2c"])
     error_message = "Read replicas must occupy the zones that are not the writer zone."
   }
 
   assert {
-    condition     = alltrue([for replica in aws_db_instance.replica : replica.publicly_accessible == false])
+    condition = alltrue(concat(
+      [for replica in aws_db_instance.replica_first : replica.publicly_accessible == false],
+      [for replica in aws_db_instance.replica : replica.publicly_accessible == false],
+    ))
     error_message = "Read replicas must not be publicly accessible."
   }
 }

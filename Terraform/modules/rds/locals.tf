@@ -15,4 +15,12 @@ locals {
     for az in var.availability_zones : az
     if az != var.primary_availability_zone
   ]
+
+  # Stable order. Each replica after the first references the previous one so
+  # RDS is not asked to create two replicas while the writer is busy.
+  replica_zones = slice(
+    local.replica_availability_zones,
+    0,
+    min(var.read_replica_count, length(local.replica_availability_zones)),
+  )
 }

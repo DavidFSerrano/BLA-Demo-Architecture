@@ -40,6 +40,20 @@ resource "aws_eks_addon" "coredns" {
   depends_on = [aws_eks_node_group.app]
 }
 
+resource "aws_eks_pod_identity_association" "cluster_autoscaler" {
+  cluster_name    = aws_eks_cluster.this.name
+  namespace       = "kube-system"
+  service_account = "cluster-autoscaler"
+  role_arn        = aws_iam_role.cluster_autoscaler.arn
+
+  tags = local.common_tags
+
+  depends_on = [
+    aws_eks_addon.pod_identity,
+    aws_iam_role_policy_attachment.cluster_autoscaler,
+  ]
+}
+
 resource "aws_eks_pod_identity_association" "aws_load_balancer_controller" {
   cluster_name    = aws_eks_cluster.this.name
   namespace       = "kube-system"

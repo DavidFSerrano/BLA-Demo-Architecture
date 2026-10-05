@@ -37,6 +37,16 @@ override_resource {
 }
 
 override_resource {
+  target = aws_iam_role.cluster_autoscaler
+  values = { arn = "arn:aws:iam::637423617446:role/bla-demo-test-cluster-autoscaler" }
+}
+
+override_resource {
+  target = aws_iam_policy.cluster_autoscaler
+  values = { arn = "arn:aws:iam::637423617446:policy/bla-demo-test-cluster-autoscaler" }
+}
+
+override_resource {
   target = aws_launch_template.nodes
   values = { id = "lt-0123456789abcdef0" }
 }
@@ -274,6 +284,35 @@ run "load_balancer_controller_uses_pod_identity" {
   assert {
     condition     = strcontains(aws_iam_role.aws_load_balancer_controller.assume_role_policy, "pods.eks.amazonaws.com")
     error_message = "The controller role must trust the Pod Identity service."
+  }
+}
+
+run "cluster_autoscaler_uses_pod_identity" {
+  command = apply
+
+  assert {
+    condition     = aws_eks_pod_identity_association.cluster_autoscaler.namespace == "kube-system"
+    error_message = "The cluster autoscaler association must be in kube-system."
+  }
+
+  assert {
+    condition     = aws_eks_pod_identity_association.cluster_autoscaler.service_account == "cluster-autoscaler"
+    error_message = "The service account name must match the Helm chart."
+  }
+
+  assert {
+    condition     = aws_eks_pod_identity_association.cluster_autoscaler.role_arn == aws_iam_role.cluster_autoscaler.arn
+    error_message = "The association must use the cluster autoscaler IAM role."
+  }
+
+  assert {
+    condition     = aws_eks_node_group.app.tags["k8s.io/cluster-autoscaler/enabled"] == "true"
+    error_message = "The node group must be tagged so Cluster Autoscaler will manage its Auto Scaling group."
+  }
+
+  assert {
+    condition     = aws_eks_node_group.app.tags["k8s.io/cluster-autoscaler/${var.cluster_name}"] == "owned"
+    error_message = "The node group tag must name this cluster."
   }
 }
 

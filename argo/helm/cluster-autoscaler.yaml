@@ -1,0 +1,14 @@
+name: cluster-autoscaler
+repoURL: https://kubernetes.github.io/autoscaler
+chart: cluster-autoscaler
+targetRevision: "9.51.0"
+namespace: kube-system
+values: |
+  cloudProvider: aws
+  awsRegion: us-east-2
+  autoDiscovery:
+    clusterName: bla-demo-prod
+  rbac:
+    serviceAccount:
+      create: true
+      name: cluster-autoscaler

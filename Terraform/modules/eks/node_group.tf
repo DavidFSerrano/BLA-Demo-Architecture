@@ -70,9 +70,18 @@ resource "aws_eks_node_group" "app" {
     role = "app"
   }
 
+  # These tags are copied onto the managed node group's Auto Scaling group.
+  # Cluster Autoscaler only changes groups that carry both of them.
   tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-eks-app-nodes"
+    Name                                            = "${local.name_prefix}-eks-app-nodes"
+    "k8s.io/cluster-autoscaler/enabled"             = "true"
+    "k8s.io/cluster-autoscaler/${var.cluster_name}" = "owned"
   })
+
+  # The autoscaler changes desired capacity. Terraform keeps min and max.
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size]
+  }
 
   depends_on = [
     aws_iam_role_policy_attachment.node_worker,
