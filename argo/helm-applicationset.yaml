@@ -24,8 +24,6 @@ spec:
         repoURL: "{{.repoURL}}"
         chart: "{{.chart}}"
         targetRevision: "{{.targetRevision}}"
-        helm:
-          values: |{{.values | nindent 12}}
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{.namespace}}"
@@ -33,3 +31,9 @@ spec:
         automated:
           prune: true
           selfHeal: true
+  templatePatch: |
+    spec:
+      source:
+        helm:
+          values: |
+            {{- .values | nindent 12 }}
