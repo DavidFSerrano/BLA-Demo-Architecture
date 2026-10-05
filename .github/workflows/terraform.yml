@@ -36,10 +36,9 @@ jobs:
     name: Plan (${{ inputs.gh_environment }})
     runs-on: ubuntu-latest
 
-    permissions:
-      contents: read
-      id-token: write
-      pull-requests: write
+    # Inherited from the caller. A called job cannot request pull-requests: write
+    # when prod grants none, and declaring permissions here would also drop the
+    # write scope dev needs for the plan comment.
 
     outputs:
       # terraform plan -detailed-exitcode returns 2 when there is something to do.
@@ -199,10 +198,6 @@ jobs:
     # The manual hold. The job waits here until a required reviewer on this
     # environment approves it.
     environment: ${{ inputs.gh_environment }}
-
-    permissions:
-      contents: read
-      id-token: write
 
     steps:
       - name: Checkout

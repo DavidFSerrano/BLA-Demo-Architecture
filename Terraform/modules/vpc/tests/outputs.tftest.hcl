@@ -67,6 +67,49 @@ run "s3_gateway_endpoint_can_be_disabled" {
   }
 }
 
+run "interface_endpoints_in_application_subnets" {
+  command = apply
+
+  assert {
+    condition = toset([for endpoint in aws_vpc_endpoint.interface : endpoint.service_name]) == toset([
+      "com.amazonaws.us-east-2.eks-auth",
+      "com.amazonaws.us-east-2.ecr.api",
+      "com.amazonaws.us-east-2.ecr.dkr",
+      "com.amazonaws.us-east-2.sts",
+      "com.amazonaws.us-east-2.ec2",
+    ])
+    error_message = "The VPC must expose interface endpoints for EKS Auth, ECR, STS, and EC2."
+  }
+
+  assert {
+    condition = alltrue([
+      for endpoint in aws_vpc_endpoint.interface :
+      endpoint.vpc_endpoint_type == "Interface"
+      && endpoint.private_dns_enabled
+      && toset(endpoint.subnet_ids) == toset([for az in var.availability_zones : aws_subnet.app[az].id])
+    ])
+    error_message = "Interface endpoints must use private DNS and sit in every application subnet."
+  }
+
+  assert {
+    condition     = toset(keys(output.interface_vpc_endpoint_ids)) == toset(["eks_auth", "ecr_api", "ecr_dkr", "sts", "ec2"])
+    error_message = "interface_vpc_endpoint_ids must be keyed by those services."
+  }
+}
+
+run "interface_endpoints_can_be_disabled" {
+  command = apply
+
+  variables {
+    enable_interface_endpoints = false
+  }
+
+  assert {
+    condition     = length(aws_vpc_endpoint.interface) == 0
+    error_message = "No interface endpoints should be created when the flag is false."
+  }
+}
+
 run "subnet_outputs_are_grouped_by_role_and_keyed_by_az" {
   command = apply
 

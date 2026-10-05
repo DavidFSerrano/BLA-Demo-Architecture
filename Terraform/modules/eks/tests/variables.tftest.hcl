@@ -1,18 +1,8 @@
 mock_provider "aws" {}
 
 override_data {
-  target = data.aws_region.current
-  values = { region = "us-east-2" }
-}
-
-override_data {
   target = data.aws_partition.current
   values = { partition = "aws" }
-}
-
-override_data {
-  target = data.aws_caller_identity.current
-  values = { account_id = "637423617446" }
 }
 
 variables {

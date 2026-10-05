@@ -63,8 +63,3 @@ output "ebs_csi_role_arn" {
   description = "IAM role ARN associated with the EBS CSI controller via EKS Pod Identity."
   value       = aws_iam_role.ebs_csi.arn
 }
-
-output "eks_auth_vpc_endpoint_id" {
-  description = "Interface VPC endpoint ID for EKS Auth, used by the Pod Identity agent."
-  value       = aws_vpc_endpoint.eks_auth.id
-}

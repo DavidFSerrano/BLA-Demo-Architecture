@@ -26,8 +26,6 @@ resource "aws_eks_addon" "pod_identity" {
   resolve_conflicts_on_update = "OVERWRITE"
 
   tags = local.common_tags
-
-  depends_on = [aws_vpc_endpoint.eks_auth]
 }
 
 resource "aws_eks_addon" "coredns" {

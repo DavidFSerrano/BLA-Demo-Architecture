@@ -8,13 +8,13 @@ It deploys no application workloads and no RDS.
 
 ## What it creates
 
-- EKS cluster with API access entries (no `aws-auth` ConfigMap).
+- EKS cluster with API access entries (no `aws-auth` ConfigMap). Admin is granted only to the principals in `cluster_admin_principal_arns`, not to whoever happens to run apply.
 - Cluster IAM role and node IAM role.
 - One managed node group (`app`) in the three private application subnets.
 - One launch template so every worker node receives the same security group, IMDSv2, and a gp3 root volume.
 - EKS add-ons: `vpc-cni`, `kube-proxy`, `coredns`, `eks-pod-identity-agent`, `aws-ebs-csi-driver`.
 - An IAM role for the EBS CSI controller, granted through EKS Pod Identity (not IRSA).
-- An EKS Auth interface VPC endpoint so the Pod Identity agent on private nodes can call `eks-auth` without the public internet.
+- No VPC endpoints. EKS Auth, ECR, STS, EC2, and S3 endpoints are created by the VPC module.
 
 ## Instance type
 

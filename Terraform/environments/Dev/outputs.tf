@@ -43,6 +43,11 @@ output "s3_vpc_endpoint_id" {
   value       = module.vpc.s3_vpc_endpoint_id
 }
 
+output "interface_vpc_endpoint_ids" {
+  description = "Interface VPC endpoint IDs keyed by service."
+  value       = module.vpc.interface_vpc_endpoint_ids
+}
+
 output "firewall_integration" {
   description = "Identifiers for the future security module that adds AWS Network Firewall."
   value       = module.vpc.firewall_integration

@@ -166,8 +166,8 @@ each AZ, and a single shared node security group.
 
 Add-ons: VPC CNI, kube-proxy, CoreDNS, EKS Pod Identity agent, and EBS CSI. EBS CSI gets
 IAM through Pod Identity. VPC CNI stays on the node role because it has to work at node
-boot. An EKS Auth interface endpoint is created in the application subnets so Pod Identity
-works from private nodes.
+boot. The VPC module places interface endpoints for EKS Auth, ECR, STS, and EC2 in
+the application subnets, so those calls do not depend on the NAT gateway.
 
 See [`modules/eks/README.md`](modules/eks/README.md).
 

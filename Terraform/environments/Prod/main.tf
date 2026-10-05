@@ -24,6 +24,10 @@ module "vpc" {
 module "eks" {
   source = "../../modules/eks"
 
+  # Endpoints are part of the VPC module and are not referenced below, so this
+  # waits for the whole VPC, including those endpoints, before the cluster starts.
+  depends_on = [module.vpc]
+
   project      = var.project
   environment  = var.environment
   tags         = var.tags
@@ -39,6 +43,7 @@ module "eks" {
   node_max_size      = 6
 
   cluster_admin_principal_arns = [
+    "arn:aws:iam::637423617446:user/David_Serrano",
     "arn:aws:iam::637423617446:role/github-actions-terraform-deploy",
   ]
 }

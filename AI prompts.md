@@ -84,4 +84,4 @@ merge to main triggers terraform apply to the prod backend
 
 ## Prompt for creating the EKS module.
 
-Create the eks module now, use the second smallest ec2 instance that eks allows, the worker nodes should be deployed in 3 private subnets across the 3 AZs, install the vpc CNI , EBS CSI , use managed node groups , add EKS pod identify so pods can use IAM roles, as an eks addon, coredns and kube-proxy, all eks worker nodes should have the same security group
+Create the eks module now, use the second smallest ec2 instance that eks allows, the worker nodes should be deployed in 3 private subnets across the 3 AZs, install the vpc CNI , EBS CSI , use managed node groups , add EKS pod identify so pods can use IAM roles, as an eks addon, coredns and kube-proxy, all eks worker nodes should share the same security group

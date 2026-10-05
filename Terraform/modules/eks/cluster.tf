@@ -10,8 +10,12 @@ resource "aws_eks_cluster" "this" {
   enabled_cluster_log_types = var.enabled_cluster_log_types
 
   access_config {
-    authentication_mode                         = "API"
-    bootstrap_cluster_creator_admin_permissions = true
+    authentication_mode = "API"
+
+    # Off so access does not depend on who runs apply. CI and laptop users are
+    # both granted through cluster_admin_principal_arns. Leaving this on would
+    # also collide with that list when the creator is already in it.
+    bootstrap_cluster_creator_admin_permissions = false
   }
 
   vpc_config {

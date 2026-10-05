@@ -115,6 +115,11 @@ output "s3_vpc_endpoint_id" {
   value       = try(aws_vpc_endpoint.s3[0].id, null)
 }
 
+output "interface_vpc_endpoint_ids" {
+  description = "Interface VPC endpoint IDs for EKS Auth, ECR, STS, and EC2, keyed by service. Empty when interface endpoints are disabled."
+  value       = { for name, endpoint in aws_vpc_endpoint.interface : name => endpoint.id }
+}
+
 # --- Future firewall integration contract ------------------------------------
 
 # Everything a future security module needs to create AWS Network Firewall endpoints

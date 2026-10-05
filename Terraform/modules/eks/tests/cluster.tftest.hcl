@@ -7,18 +7,8 @@
 mock_provider "aws" {}
 
 override_data {
-  target = data.aws_region.current
-  values = { region = "us-east-2" }
-}
-
-override_data {
   target = data.aws_partition.current
   values = { partition = "aws" }
-}
-
-override_data {
-  target = data.aws_caller_identity.current
-  values = { account_id = "637423617446" }
 }
 
 override_resource {
@@ -93,6 +83,32 @@ run "cluster_uses_private_subnets_and_api_auth" {
   assert {
     condition     = aws_eks_cluster.this.vpc_config[0].security_group_ids == toset([aws_security_group.nodes.id])
     error_message = "The shared node security group must also be attached to the cluster."
+  }
+
+  assert {
+    condition     = aws_eks_cluster.this.access_config[0].bootstrap_cluster_creator_admin_permissions == false
+    error_message = "Cluster-creator admin must stay off so access does not depend on who runs apply."
+  }
+}
+
+run "named_principals_get_cluster_admin" {
+  command = apply
+
+  variables {
+    cluster_admin_principal_arns = [
+      "arn:aws:iam::637423617446:user/David_Serrano",
+      "arn:aws:iam::637423617446:role/github-actions-terraform-deploy",
+    ]
+  }
+
+  assert {
+    condition     = aws_eks_access_entry.admin["arn:aws:iam::637423617446:user/David_Serrano"].principal_arn == "arn:aws:iam::637423617446:user/David_Serrano"
+    error_message = "The IAM user must have an access entry so kubectl works when CI creates the cluster."
+  }
+
+  assert {
+    condition     = aws_eks_access_policy_association.admin["arn:aws:iam::637423617446:user/David_Serrano"].policy_arn == "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+    error_message = "The IAM user access entry must be cluster admin."
   }
 }
 
@@ -227,21 +243,3 @@ run "ebs_csi_uses_pod_identity" {
   }
 }
 
-run "eks_auth_endpoint_is_created_for_pod_identity" {
-  command = apply
-
-  assert {
-    condition     = aws_vpc_endpoint.eks_auth.service_name == "com.amazonaws.us-east-2.eks-auth"
-    error_message = "Pod Identity on private nodes needs the EKS Auth interface endpoint."
-  }
-
-  assert {
-    condition     = aws_vpc_endpoint.eks_auth.vpc_endpoint_type == "Interface"
-    error_message = "EKS Auth must be an interface endpoint."
-  }
-
-  assert {
-    condition     = toset(aws_vpc_endpoint.eks_auth.subnet_ids) == toset(var.private_subnet_ids)
-    error_message = "The EKS Auth endpoint must sit in the same private subnets as the nodes."
-  }
-}
