@@ -1,0 +1,30 @@
+# Merges to main are applied to prod, after the same validate, test, and plan
+# sequence the pull request ran against dev.
+
+name: Terraform Prod
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "Terraform/**"
+      - ".github/workflows/terraform.yml"
+      - ".github/workflows/terraform-prod.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: terraform-prod
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    uses: ./.github/workflows/terraform.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment_dir: Terraform/environments/Prod
+      gh_environment: prod

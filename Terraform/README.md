@@ -164,6 +164,82 @@ Every resource carries `Project`, `Environment`, `ManagedBy = terraform`, and
 `Component = network`, plus a descriptive `Name` and a `Tier` matching its role. Each root
 module adds `Application` and `CostCenter` through the `tags` variable.
 
+## CI/CD
+
+Three workflows in `.github/workflows/`:
+
+| File | Trigger | Target |
+| --- | --- | --- |
+| `terraform-dev.yml` | pull request to `main` | dev, apply held for approval |
+| `terraform-prod.yml` | push to `main` | prod |
+| `terraform.yml` | called by both | the shared pipeline |
+
+Both environments run the same sequence, because they call the same reusable workflow:
+
+```
+init -> fmt -check -> validate -> test -> plan -> apply
+```
+
+Authentication is OIDC into `arn:aws:iam::637423617446:role/github-actions-terraform-deploy`.
+No AWS keys are stored in the repository or in GitHub secrets.
+
+How the pipeline behaves:
+
+- **Plan and apply are separated.** The plan job uploads its `tfplan` file as an artifact
+  and the apply job applies that exact file. A reviewer approves the plan they actually
+  read, and if the state moved while approval was pending, Terraform rejects the stale
+  plan rather than applying something unreviewed.
+- **No-op runs skip apply.** `terraform plan -detailed-exitcode` returns 2 only when there
+  is something to do, so an unchanged plan never raises an approval request.
+- **Runs are serialized, not cancelled.** Each environment has a `concurrency` group with
+  `cancel-in-progress: false`, because cancelling mid-apply would strand a state lock.
+- **The plan is posted to the pull request** as a single comment that updates in place on
+  each push, rather than a new comment per run.
+- **Module tests run before plan**, so a broken module fails fast. They use a mocked
+  provider and need no credentials.
+- `Bootstrap` is deliberately not in CI. It is a one-time, manually run root module.
+
+### Required setup
+
+**1. Create the GitHub Environments.** The manual hold is an environment protection rule,
+not something the workflow can configure. Create `dev` and `prod` under
+*Settings → Environments*, and add required reviewers to `dev`:
+
+```sh
+gh api -X PUT repos/DavidFSerrano/BLA-Demo-Architecture/environments/dev \
+  -f 'reviewers[][type]=User' -F "reviewers[][id]=$(gh api user -q .id)"
+
+gh api -X PUT repos/DavidFSerrano/BLA-Demo-Architecture/environments/prod
+```
+
+As written, **prod applies automatically on merge to `main`**, which is what was asked for.
+Adding required reviewers to the `prod` environment the same way as `dev` turns it into a
+manual hold too.
+
+**2. Check the OIDC trust policy covers environment subjects.** This is the most likely
+cause of a first-run failure. When a job declares `environment: dev`, the OIDC token
+subject changes from the branch form to the environment form:
+
+| Job | `sub` claim |
+| --- | --- |
+| plan, on a pull request | `repo:DavidFSerrano/BLA-Demo-Architecture:pull_request` |
+| plan, on push to main | `repo:DavidFSerrano/BLA-Demo-Architecture:ref:refs/heads/main` |
+| apply (dev or prod) | `repo:DavidFSerrano/BLA-Demo-Architecture:environment:<name>` |
+
+If the role's trust policy only matches `ref:refs/heads/main`, the apply jobs will fail to
+assume the role. The simplest fix is a `StringLike` condition on
+`repo:DavidFSerrano/BLA-Demo-Architecture:*`.
+
+**3. The role needs access to both state buckets** and to the VPC, EC2, and EIP APIs the
+module manages.
+
+### A note on applying dev from pull requests
+
+Dev tracks whichever pull request was approved most recently, not `main`. With one shared
+dev state that is the expected tradeoff of applying from PRs, and the concurrency group
+keeps two PRs from applying at once. If dev ever needs to match `main` instead, move the
+dev apply to a `push` trigger.
+
 ## Usage
 
 Credentials are never in the repository. The provider reads them from the environment
