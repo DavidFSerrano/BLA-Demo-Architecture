@@ -1,0 +1,114 @@
+variable "project" {
+  description = "Project identifier used for resource naming and tagging."
+  type        = string
+}
+
+variable "environment" {
+  description = "Environment identifier used for resource naming and tagging (for example dev or prod)."
+  type        = string
+}
+
+variable "tags" {
+  description = "Additional tags applied to every resource created by this module."
+  type        = map(string)
+  default     = {}
+}
+
+variable "vpc_id" {
+  description = "VPC that hosts the isolated database subnets."
+  type        = string
+}
+
+variable "database_subnet_ids" {
+  description = "Isolated database subnet IDs, one per Availability Zone. These subnets have no internet route."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.database_subnet_ids) >= 2 && length(var.database_subnet_ids) == length(distinct(var.database_subnet_ids))
+    error_message = "database_subnet_ids must contain at least two unique subnet IDs."
+  }
+}
+
+variable "availability_zones" {
+  description = "Availability Zones that contain the database subnets, in the same order as database_subnet_ids."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.availability_zones) == length(distinct(var.availability_zones)) && length(var.availability_zones) >= 2
+    error_message = "availability_zones must contain at least two unique zones."
+  }
+}
+
+variable "primary_availability_zone" {
+  description = "Availability Zone for the read/write instance. The architecture diagram places this in the middle zone."
+  type        = string
+}
+
+variable "read_replica_count" {
+  description = "Number of read replicas, one per remaining Availability Zone. Prod uses 2 so every zone in the diagram has a database."
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.read_replica_count >= 0
+    error_message = "read_replica_count cannot be negative."
+  }
+}
+
+variable "allowed_security_group_ids" {
+  description = "Security groups allowed to connect to Postgres. Pass the EKS node security group so pods can reach the database."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.allowed_security_group_ids) > 0 && length(var.allowed_security_group_ids) == length(distinct(var.allowed_security_group_ids))
+    error_message = "allowed_security_group_ids must contain at least one unique security group."
+  }
+}
+
+variable "engine_version" {
+  description = "PostgreSQL engine version. A major version lets AWS pick the current minor."
+  type        = string
+  default     = "16"
+}
+
+variable "instance_class" {
+  description = "RDS instance class for the writer and each read replica. db.t4g.micro is the smallest Graviton class that runs PostgreSQL."
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "allocated_storage" {
+  description = "Allocated storage in GiB for the writer. 20 is the minimum for gp3. Replicas inherit it."
+  type        = number
+  default     = 20
+}
+
+variable "db_name" {
+  description = "Initial database name on the writer."
+  type        = string
+  default     = "booking"
+}
+
+variable "username" {
+  description = "Master username. RDS generates the password and stores it in Secrets Manager."
+  type        = string
+  default     = "booking"
+}
+
+variable "backup_retention_period" {
+  description = "Days to retain automated backups. Read replicas require at least 1."
+  type        = number
+  default     = 7
+}
+
+variable "deletion_protection" {
+  description = "Block deletion of the writer until this is turned off."
+  type        = bool
+  default     = true
+}
+
+variable "skip_final_snapshot" {
+  description = "Skip the final snapshot when the writer is destroyed. Leave false for prod."
+  type        = bool
+  default     = false
+}

@@ -72,3 +72,18 @@ output "eks_addon_names" {
   description = "EKS add-ons installed on the cluster. Null when enabled is false."
   value       = one(module.eks[*].addon_names)
 }
+
+output "rds_endpoint" {
+  description = "PostgreSQL writer hostname. Null when enabled is false."
+  value       = one(module.rds[*].endpoint)
+}
+
+output "rds_reader_endpoints" {
+  description = "PostgreSQL read replica hostnames keyed by Availability Zone. Null when enabled is false."
+  value       = one(module.rds[*].reader_endpoints)
+}
+
+output "rds_master_user_secret_arn" {
+  description = "Secrets Manager ARN of the RDS-managed master password. Null when enabled is false."
+  value       = one(module.rds[*].master_user_secret_arn)
+}

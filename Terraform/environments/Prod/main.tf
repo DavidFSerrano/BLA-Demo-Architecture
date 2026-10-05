@@ -47,3 +47,21 @@ module "eks" {
     "arn:aws:iam::637423617446:role/github-actions-terraform-deploy",
   ]
 }
+
+module "rds" {
+  source = "../../modules/rds"
+
+  project     = var.project
+  environment = var.environment
+  tags        = var.tags
+
+  vpc_id              = module.vpc.vpc_id
+  database_subnet_ids = module.vpc.subnet_id_lists_by_role.database
+  availability_zones  = var.availability_zones
+
+  # The architecture diagram puts the writer in the middle zone and a read
+  # replica in each of the other two database subnets.
+  primary_availability_zone  = "us-east-2b"
+  read_replica_count         = 2
+  allowed_security_group_ids = [module.eks.node_security_group_id]
+}

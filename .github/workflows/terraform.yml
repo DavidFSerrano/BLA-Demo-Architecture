@@ -65,6 +65,9 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+          # The wrapper stores the entire plan as a step output. A destroy of the
+          # dev stack is large enough that the next step cannot start.
+          terraform_wrapper: false
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
@@ -101,11 +104,26 @@ jobs:
           terraform init -no-color
           terraform test -no-color
 
+      - name: Terraform test (rds module)
+        working-directory: Terraform/modules/rds
+        run: |
+          terraform init -no-color
+          terraform test -no-color
+
       - name: Terraform plan
         id: plan
         continue-on-error: true
         working-directory: ${{ inputs.environment_dir }}
-        run: terraform plan -no-color -lock-timeout=5m -detailed-exitcode -out=tfplan
+        run: |
+          set +e
+          terraform plan -no-color -lock-timeout=5m -detailed-exitcode -out=tfplan
+          code=$?
+          set -e
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" -eq 0 ] || [ "$code" -eq 2 ]; then
+            terraform show -no-color tfplan > "$RUNNER_TEMP/tfplan.txt"
+          fi
+          exit "$code"
 
       - name: Fail on plan error
         if: steps.plan.outputs.exitcode == '1'
@@ -124,11 +142,10 @@ jobs:
           retention-days: 5
           if-no-files-found: error
 
-      # Plan text is passed through the environment, never interpolated into the
-      # script body, so Terraform output cannot be executed as shell.
+      # Plan text stays in a runner file. Putting it in the step environment
+      # makes bash fail to start once a destroy plan exceeds ARG_MAX.
       - name: Job summary
         env:
-          PLAN_STDOUT: ${{ steps.plan.outputs.stdout }}
           PLAN_EXITCODE: ${{ steps.plan.outputs.exitcode }}
         run: |
           {
@@ -138,7 +155,7 @@ jobs:
               echo "No changes. Apply will be skipped."
             else
               echo '```terraform'
-              printf '%s\n' "$PLAN_STDOUT" | tail -c 60000
+              tail -c 60000 "$RUNNER_TEMP/tfplan.txt"
               echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
@@ -147,16 +164,21 @@ jobs:
         if: inputs.comment_on_pr && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         env:
-          PLAN_STDOUT: ${{ steps.plan.outputs.stdout }}
           PLAN_EXITCODE: ${{ steps.plan.outputs.exitcode }}
         with:
           script: |
+            const fs = require('fs');
             const marker = `<!-- terraform-plan-${{ inputs.gh_environment }} -->`;
             const exitcode = process.env.PLAN_EXITCODE;
 
             // GitHub rejects comment bodies over 65536 characters.
             const limit = 60000;
-            let plan = process.env.PLAN_STDOUT || '';
+            let plan = '';
+            try {
+              plan = fs.readFileSync(`${process.env.RUNNER_TEMP}/tfplan.txt`, 'utf8');
+            } catch (err) {
+              plan = '';
+            }
             if (plan.length > limit) {
               plan = `...truncated, see the job summary for the full plan...\n${plan.slice(-limit)}`;
             }
@@ -219,6 +241,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4

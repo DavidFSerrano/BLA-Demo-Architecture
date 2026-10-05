@@ -50,3 +50,24 @@ module "eks" {
     "arn:aws:iam::637423617446:role/github-actions-terraform-deploy",
   ]
 }
+
+module "rds" {
+  count  = var.enabled ? 1 : 0
+  source = "../../modules/rds"
+
+  project     = var.project
+  environment = var.environment
+  tags        = var.tags
+
+  vpc_id              = module.vpc[0].vpc_id
+  database_subnet_ids = module.vpc[0].subnet_id_lists_by_role.database
+  availability_zones  = var.availability_zones
+
+  # Dev keeps a single writer. Prod is the layout in the architecture diagram.
+  primary_availability_zone  = "us-east-2a"
+  read_replica_count         = 0
+  backup_retention_period    = 1
+  deletion_protection        = false
+  skip_final_snapshot        = true
+  allowed_security_group_ids = [module.eks[0].node_security_group_id]
+}

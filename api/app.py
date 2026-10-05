@@ -25,6 +25,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+        if path == "/":
+            self._send(200, {"service": "booking-api"})
+            return
         if path == "/health":
             self._send(200, {"status": "ok"})
             return
