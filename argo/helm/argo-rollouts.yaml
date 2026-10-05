@@ -1,0 +1,7 @@
+name: argo-rollouts
+repoURL: https://argoproj.github.io/argo-helm
+chart: argo-rollouts
+targetRevision: "2.43.5"
+namespace: argo-rollouts
+values: |
+  installCRDs: true
