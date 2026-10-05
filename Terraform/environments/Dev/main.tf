@@ -3,6 +3,7 @@ locals {
 }
 
 module "vpc" {
+  count  = var.enabled ? 1 : 0
   source = "../../modules/vpc"
 
   project     = var.project
@@ -23,6 +24,7 @@ module "vpc" {
 }
 
 module "eks" {
+  count  = var.enabled ? 1 : 0
   source = "../../modules/eks"
 
   # Endpoints are part of the VPC module and are not referenced below, so this
@@ -34,9 +36,9 @@ module "eks" {
   tags         = var.tags
   cluster_name = local.cluster_name
 
-  vpc_id             = module.vpc.vpc_id
-  vpc_cidr           = module.vpc.vpc_cidr_block
-  private_subnet_ids = module.vpc.subnet_id_lists_by_role.app
+  vpc_id             = module.vpc[0].vpc_id
+  vpc_cidr           = module.vpc[0].vpc_cidr_block
+  private_subnet_ids = module.vpc[0].subnet_id_lists_by_role.app
 
   node_instance_type = "t3.medium"
   node_desired_size  = 3

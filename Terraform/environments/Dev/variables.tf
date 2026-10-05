@@ -1,3 +1,9 @@
+variable "enabled" {
+  description = "Create the dev VPC and EKS cluster. Set to false to destroy them on the next apply while keeping this root module and its state."
+  type        = bool
+  default     = false
+}
+
 variable "project" {
   description = "Project identifier used for naming and tagging."
   type        = string
