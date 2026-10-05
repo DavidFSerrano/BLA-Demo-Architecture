@@ -50,6 +50,43 @@ module "vpc" {
 }
 ```
 
+## Tests
+
+28 tests in `tests/`, using the built-in Terraform test framework with a mocked AWS
+provider. Nothing is created in AWS and no credentials are required.
+
+```sh
+cd Terraform/modules/vpc
+terraform init
+terraform test
+```
+
+| File | Covers |
+| --- | --- |
+| `variables.tftest.hcl` | Every input validation, each with a bad value and `expect_failures`. |
+| `subnets.tftest.hcl` | VPC flags, the 12-subnet layout, CIDR non-overlap and VPC containment, app subnet sizing, load balancer and cluster discovery tags, project/environment tagging. |
+| `routing.tftest.hcl` | One route table and association per subnet, public default to the IGW, the absence of firewall and database default routes, and both NAT topologies. |
+| `outputs.tftest.hcl` | S3 endpoint placement and its disable switch, the shape of the grouped outputs, and the `firewall_integration` contract. |
+
+Notes on how the tests are written:
+
+- `variables.tftest.hcl` and `subnets.tftest.hcl` use `command = plan`, because everything
+  they assert on comes from configuration. `routing.tftest.hcl` and `outputs.tftest.hcl`
+  use `command = apply`, because resource IDs are unknown until after apply and the
+  per-AZ routing assertions compare them. The provider is mocked in both cases.
+- `routing.tftest.hcl` pins each NAT gateway to a fixed ID with `override_resource`, so
+  "AZ b routes through the gateway in AZ b" is asserted against a known value rather than
+  two generated mock strings.
+- The non-overlap test decomposes every subnet into the `/28` blocks it covers and checks
+  for duplicates, which catches an address plan typo that the variable validations cannot.
+- `firewall_integration_contract` pins the exact key set of that output. It is the
+  interface a future security module builds against, so a change in its shape should fail
+  loudly here.
+
+The suite was checked against deliberate regressions: inverting the per-AZ NAT mapping
+fails `nat_gateway_per_az`, and adding an `elb` tag to the database subnets fails
+`load_balancer_discovery_tags`.
+
 ## Inputs
 
 | Name | Type | Default | Description |

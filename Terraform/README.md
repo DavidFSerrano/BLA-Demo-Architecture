@@ -185,7 +185,19 @@ cd ../Prod           && terraform init -backend=false && terraform validate
 `-backend=false` skips backend initialization, so this works before the state buckets
 exist and without AWS credentials. `validate` makes no API calls.
 
-### 2. Create the state buckets (needs credentials)
+### 2. Run the module tests (no credentials needed)
+
+```sh
+cd Terraform/modules/vpc
+terraform init
+terraform test
+```
+
+28 tests covering input validation, the subnet layout, routing, both NAT topologies, and
+the output contract. The AWS provider is mocked, so nothing is created. See
+[`modules/vpc/README.md`](modules/vpc/README.md#tests).
+
+### 3. Create the state buckets (needs credentials)
 
 ```sh
 cd Terraform/Bootstrap
@@ -197,7 +209,7 @@ terraform output state_bucket_names
 Confirm the output names match the `bucket` values in the two `backend.tf` files. If your
 account ID differs from the one written there, update both files to match.
 
-### 3. Initialize each environment against its backend
+### 4. Initialize each environment against its backend
 
 ```sh
 cd Terraform/environments/Dev
