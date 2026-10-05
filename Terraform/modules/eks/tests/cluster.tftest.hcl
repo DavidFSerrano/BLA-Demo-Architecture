@@ -27,6 +27,16 @@ override_resource {
 }
 
 override_resource {
+  target = aws_iam_role.aws_load_balancer_controller
+  values = { arn = "arn:aws:iam::637423617446:role/bla-demo-test-aws-lbc" }
+}
+
+override_resource {
+  target = aws_iam_policy.aws_load_balancer_controller
+  values = { arn = "arn:aws:iam::637423617446:policy/bla-demo-test-aws-lbc" }
+}
+
+override_resource {
   target = aws_launch_template.nodes
   values = { id = "lt-0123456789abcdef0" }
 }
@@ -240,6 +250,30 @@ run "ebs_csi_uses_pod_identity" {
   assert {
     condition     = strcontains(aws_iam_role.ebs_csi.assume_role_policy, "pods.eks.amazonaws.com")
     error_message = "The EBS CSI role must trust the Pod Identity service."
+  }
+}
+
+run "load_balancer_controller_uses_pod_identity" {
+  command = apply
+
+  assert {
+    condition     = aws_eks_pod_identity_association.aws_load_balancer_controller.namespace == "kube-system"
+    error_message = "The load balancer controller association must be in kube-system."
+  }
+
+  assert {
+    condition     = aws_eks_pod_identity_association.aws_load_balancer_controller.service_account == "aws-load-balancer-controller"
+    error_message = "The service account name must match the Helm chart default."
+  }
+
+  assert {
+    condition     = aws_eks_pod_identity_association.aws_load_balancer_controller.role_arn == aws_iam_role.aws_load_balancer_controller.arn
+    error_message = "The association must use the controller IAM role."
+  }
+
+  assert {
+    condition     = strcontains(aws_iam_role.aws_load_balancer_controller.assume_role_policy, "pods.eks.amazonaws.com")
+    error_message = "The controller role must trust the Pod Identity service."
   }
 }
 

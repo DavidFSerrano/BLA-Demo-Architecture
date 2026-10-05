@@ -83,3 +83,39 @@ resource "aws_iam_role_policy_attachment" "ebs_csi" {
   role       = aws_iam_role.ebs_csi.name
   policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
+
+# The controller runs as a pod, and the node IMDS hop limit is 1, so it cannot
+# use the node role. Pod Identity is the same pattern as the EBS CSI driver.
+# Policy document is the upstream AWS Load Balancer Controller policy.
+resource "aws_iam_role" "aws_load_balancer_controller" {
+  name = "${local.name_prefix}-aws-lbc"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid    = "AllowEksAuthToAssumeRoleForPodIdentity"
+      Effect = "Allow"
+      Action = ["sts:AssumeRole", "sts:TagSession"]
+      Principal = {
+        Service = "pods.eks.amazonaws.com"
+      }
+    }]
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-aws-lbc"
+  })
+}
+
+resource "aws_iam_policy" "aws_load_balancer_controller" {
+  name   = "${local.name_prefix}-aws-lbc"
+  policy = file("${path.module}/iam_policy_aws_load_balancer_controller.json")
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-aws-lbc"
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "aws_load_balancer_controller" {
+  role       = aws_iam_role.aws_load_balancer_controller.name
+  policy_arn = aws_iam_policy.aws_load_balancer_controller.arn
+}
