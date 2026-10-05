@@ -63,3 +63,8 @@ output "ebs_csi_role_arn" {
   description = "IAM role ARN associated with the EBS CSI controller via EKS Pod Identity."
   value       = aws_iam_role.ebs_csi.arn
 }
+
+output "aws_load_balancer_controller_role_arn" {
+  description = "IAM role ARN associated with the AWS Load Balancer Controller service account via EKS Pod Identity."
+  value       = aws_iam_role.aws_load_balancer_controller.arn
+}

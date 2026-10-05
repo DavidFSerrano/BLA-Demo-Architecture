@@ -14,6 +14,7 @@ It deploys no application workloads and no RDS.
 - One launch template so every worker node receives the same security group, IMDSv2, and a gp3 root volume.
 - EKS add-ons: `vpc-cni`, `kube-proxy`, `coredns`, `eks-pod-identity-agent`, `aws-ebs-csi-driver`.
 - An IAM role for the EBS CSI controller, granted through EKS Pod Identity (not IRSA).
+- An IAM role and Pod Identity association for the AWS Load Balancer Controller service account `aws-load-balancer-controller` in `kube-system`. The controller itself is installed with Helm, not by this module.
 - No VPC endpoints. EKS Auth, ECR, STS, EC2, and S3 endpoints are created by the VPC module.
 
 ## Instance type
