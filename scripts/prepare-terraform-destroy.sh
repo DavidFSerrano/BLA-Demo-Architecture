@@ -8,7 +8,7 @@ CLUSTER=bla-demo-prod
 WRITER=bla-demo-prod-booking
 
 echo "Deleting the Argo CD apps that own Ingresses so they are not recreated..."
-kubectl delete application booking argocd-ingress -n argocd --wait=true
+kubectl delete application booking booking-prod booking-dev argocd-ingress -n argocd --wait=true --ignore-not-found
 
 echo "Deleting any Ingresses still in the cluster..."
 kubectl delete ingress --all -A --wait=true --ignore-not-found

@@ -1,0 +1,15 @@
+{{- if .Values.podMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "booking-api.name" . }}
+  labels:
+    {{- include "booking-api.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "booking-api.selectorLabels" . | nindent 6 }}
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+{{- end }}

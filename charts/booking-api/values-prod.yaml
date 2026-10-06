@@ -1,0 +1,12 @@
+replicaCount: 2
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+
+ingress:
+  enabled: true
+
+podMonitor:
+  enabled: true

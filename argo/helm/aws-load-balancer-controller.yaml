@@ -6,7 +6,7 @@ namespace: kube-system
 values: |
   clusterName: bla-demo-prod
   region: us-east-2
-  vpcId: vpc-061ed4f5b5dcda814
+  vpcId: vpc-0d918e7c36bec4f55
   serviceAccount:
     create: true
     name: aws-load-balancer-controller

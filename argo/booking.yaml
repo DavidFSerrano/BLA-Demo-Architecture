@@ -1,25 +1,46 @@
 apiVersion: argoproj.io/v1alpha1
-kind: Application
+kind: ApplicationSet
 metadata:
   name: booking
   namespace: argocd
 spec:
-  project: default
-  source:
-    repoURL: https://github.com/DavidFSerrano/BLA-Demo-Architecture
-    targetRevision: main
-    path: argo/app
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: booking
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-  ignoreDifferences:
-    - group: argoproj.io
-      kind: Rollout
-      jsonPointers:
-        - /spec/replicas
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - env: prod
+            namespace: booking
+            valueFile: values-prod.yaml
+          - env: dev
+            namespace: booking-dev
+            valueFile: values-dev.yaml
+  template:
+    metadata:
+      name: "booking-{{.env}}"
+      namespace: argocd
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/DavidFSerrano/BLA-Demo-Architecture
+        targetRevision: main
+        path: charts/booking-api
+        helm:
+          valueFiles:
+            - "{{.valueFile}}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{.namespace}}"
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+      ignoreDifferences:
+        - group: argoproj.io
+          kind: Rollout
+          jsonPointers:
+            - /spec/replicas

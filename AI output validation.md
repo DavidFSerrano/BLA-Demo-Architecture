@@ -1,8 +1,11 @@
 ## Pushing back against AI
 
-- The AI wanted to put the dev and prod tf state in the same backend bucket, I told it that I wanted a stronger boundary between them. Told it to create on s3 bucket for each.
+- The AI put dev and prod Terraform state in the same S3 bucket. I required one bucket per environment.
 
-- For security I had to tell the AI model the put AWS Network firewall in between the APP tier and the NATGW and ALB  explicitly, it did not suggested it on its own.
+- It shipped the Terraform modules with no tests. I had to require the Terraform testing framework on every module.
 
+- Argo CD was already working, and it still deployed with `kubectl apply`. I had to force the GitOps path.
 
-- The AI did not add any unit testing, I had to explicitly tell it to use the terraform testing framework.
+- It installed external tools by hand. I required Helm charts, synced by Argo CD, not the Helm CLI.
+
+- It left the API as raw manifests. I had to tell it to package the API as a Helm chart.

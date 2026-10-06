@@ -1,0 +1,10 @@
+replicaCount: 1
+
+autoscaling:
+  enabled: false
+
+ingress:
+  enabled: false
+
+podMonitor:
+  enabled: true

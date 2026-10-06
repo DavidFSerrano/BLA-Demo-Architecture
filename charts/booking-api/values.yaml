@@ -1,0 +1,47 @@
+replicaCount: 2
+revisionHistoryLimit: 2
+
+image:
+  repository: 637423617446.dkr.ecr.us-east-2.amazonaws.com/bla-demo-booking-api
+  tag: latest
+  pullPolicy: Always
+
+canary:
+  steps:
+    - setWeight: 25
+    - pause: {duration: 30s}
+    - setWeight: 50
+    - pause: {duration: 30s}
+    - setWeight: 100
+
+service:
+  port: 80
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    memory: 128Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilization: 70
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/backend-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/success-codes: "200"
+  path: /
+
+podMonitor:
+  enabled: true

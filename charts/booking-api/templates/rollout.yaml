@@ -1,26 +1,23 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
-  name: booking-api
-  namespace: booking
+  name: {{ include "booking-api.name" . }}
+  labels:
+    {{- include "booking-api.labels" . | nindent 4 }}
 spec:
-  replicas: 2
-  revisionHistoryLimit: 2
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
   selector:
     matchLabels:
-      app: booking-api
+      {{- include "booking-api.selectorLabels" . | nindent 6 }}
   strategy:
     canary:
       steps:
-        - setWeight: 25
-        - pause: {duration: 30s}
-        - setWeight: 50
-        - pause: {duration: 30s}
-        - setWeight: 100
+        {{- toYaml .Values.canary.steps | nindent 8 }}
   template:
     metadata:
       labels:
-        app: booking-api
+        {{- include "booking-api.selectorLabels" . | nindent 8 }}
     spec:
       automountServiceAccountToken: false
       hostNetwork: false
@@ -39,8 +36,8 @@ spec:
             sizeLimit: 16Mi
       containers:
         - name: booking-api
-          image: 637423617446.dkr.ecr.us-east-2.amazonaws.com/bla-demo-booking-api:latest
-          imagePullPolicy: Always
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
               containerPort: 8080
@@ -68,41 +65,4 @@ spec:
             - name: tmp
               mountPath: /tmp
           resources:
-            requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
-              memory: 128Mi
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: booking-api
-  namespace: booking
-spec:
-  selector:
-    app: booking-api
-  ports:
-    - name: http
-      port: 80
-      targetPort: http
----
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: booking-api
-  namespace: booking
-spec:
-  scaleTargetRef:
-    apiVersion: argoproj.io/v1alpha1
-    kind: Rollout
-    name: booking-api
-  minReplicas: 2
-  maxReplicas: 6
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target:
-          type: Utilization
-          averageUtilization: 70
+            {{- toYaml .Values.resources | nindent 12 }}
